@@ -226,3 +226,51 @@ def status(job_id: str):
         "total_chars": s.total_chars,
         "error_message": s.error_message,
     }
+
+
+@app.get("/result/{job_id}")
+def result_manifest(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(404, "job not found")
+    s = jobs[job_id]
+    if s.status != "complete":
+        raise HTTPException(425, f"not ready (status={s.status})")
+    return {
+        "chars": s.chars,
+        "urls": [f"/result/{job_id}/{(c if c.isalnum() else f'u{ord(c):04x}')}.png" for c in s.chars],
+    }
+
+
+@app.get("/result/{job_id}/zip")
+def result_zip(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(404, "job not found")
+    s = jobs[job_id]
+    if s.status != "complete":
+        raise HTTPException(425, "not ready")
+
+    # streaming zip of all stylized pngs
+    job_dir = JOBS_DIR / job_id
+
+    def gen():
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for c in s.chars:
+                safe = c if c.isalnum() else f"u{ord(c):04x}"
+                p = job_dir / f"{safe}.png"
+                if p.exists():
+                    zf.write(p, arcname=f"{safe}.png")
+        buf.seek(0)
+        yield buf.read()
+
+    headers = {"Content-Disposition": f'attachment; filename="stylized_{job_id[:8]}.zip"'}
+    return StreamingResponse(gen(), media_type="application/zip", headers=headers)
+
+
+@app.get("/result/{job_id}/{name}")
+def result_file(job_id: str, name: str):
+    # serve a single stylized png
+    p = JOBS_DIR / job_id / name
+    if not p.exists() or not p.is_file():
+        raise HTTPException(404, "file not found")
+    return FileResponse(p, media_type="image/png")
