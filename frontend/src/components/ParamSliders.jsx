@@ -55,7 +55,7 @@ export default function ParamSliders({
           className="w-full"
         />
         <div className="flex justify-between text-xs text-neutral-500">
-          <span>more coarse (macro patterns)</span><span>more fine (detail / colour)</span>
+          <span>more fine (detail / colour)</span><span>more coarse (macro patterns)</span>
         </div>
       </div>
       <div>
