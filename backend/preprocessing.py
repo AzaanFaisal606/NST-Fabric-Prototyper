@@ -47,8 +47,13 @@ def preprocess_image(
 
     # optional pattern suppression inside garment region only
     if suppress_pattern and mask is not None:
-        # DIP: bilateral filter (large sigma_color: pattern suppression while preserving folds)
-        filtered = cv2.bilateralFilter(arr, d=15, sigmaColor=80, sigmaSpace=15)
+        # DIP: median (k=9) kills small high-contrast pattern detail (dots, thin lines)
+        #      regardless of intensity delta — bilateral alone fails on high-contrast
+        #      dots because they look like preserve-this edges.
+        filtered = cv2.medianBlur(arr, ksize=9)
+        # DIP: bilateral (σ_color=150, σ_space=15) smooths moderate-contrast texture
+        #      while preserving major folds / silhouette edges.
+        filtered = cv2.bilateralFilter(filtered, d=15, sigmaColor=150, sigmaSpace=15)
         m3 = np.clip(mask, 0.0, 1.0).astype(np.float32)[..., None]
         arr = (filtered.astype(np.float32) * m3 + arr.astype(np.float32) * (1.0 - m3))
         arr = np.clip(arr, 0, 255).astype(np.uint8)

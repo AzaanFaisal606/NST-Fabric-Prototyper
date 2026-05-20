@@ -1,6 +1,6 @@
 export default function ParamSliders({
-  ratio, iterations, suppressTargetPattern,
-  onRatioChange, onIterChange, onSuppressChange,
+  ratio, iterations, suppressTargetPattern, coarseFraction, colorStrength,
+  onRatioChange, onIterChange, onSuppressChange, onCoarseFractionChange, onColorStrengthChange,
 }) {
   // log-scale slider: 0..100 -> ratio 1e-5..1e-1
   const sliderVal = ((Math.log10(ratio) + 5) / 4) * 100;
@@ -9,6 +9,10 @@ export default function ParamSliders({
     const r = Math.pow(10, -5 + (v / 100) * 4);
     onRatioChange(r);
   }
+
+  // split readout: e.g. iterations=500, coarseFraction=0.4 -> "200 / 300"
+  const coarseIters = Math.max(1, Math.round(iterations * coarseFraction));
+  const fineIters = Math.max(1, iterations - coarseIters);
 
   return (
     <div className="space-y-4">
@@ -29,7 +33,7 @@ export default function ParamSliders({
       </div>
       <div>
         <div className="flex justify-between text-sm">
-          <span>Iterations</span>
+          <span>Iterations (total)</span>
           <span className="text-neutral-400">{iterations}</span>
         </div>
         <input
@@ -38,6 +42,36 @@ export default function ParamSliders({
           onChange={(e) => onIterChange(Number(e.target.value))}
           className="w-full"
         />
+      </div>
+      <div>
+        <div className="flex justify-between text-sm">
+          <span>Coarse / fine split</span>
+          <span className="text-neutral-400">{coarseIters} @ 384 / {fineIters} @ 768</span>
+        </div>
+        <input
+          type="range" min={10} max={90} step={5}
+          value={Math.round(coarseFraction * 100)}
+          onChange={(e) => onCoarseFractionChange(Number(e.target.value) / 100)}
+          className="w-full"
+        />
+        <div className="flex justify-between text-xs text-neutral-500">
+          <span>more coarse (macro patterns)</span><span>more fine (detail / colour)</span>
+        </div>
+      </div>
+      <div>
+        <div className="flex justify-between text-sm">
+          <span>Color strength</span>
+          <span className="text-neutral-400">{Math.round(colorStrength * 100)}%</span>
+        </div>
+        <input
+          type="range" min={0} max={100} step={5}
+          value={Math.round(colorStrength * 100)}
+          onChange={(e) => onColorStrengthChange(Number(e.target.value) / 100)}
+          className="w-full"
+        />
+        <div className="flex justify-between text-xs text-neutral-500">
+          <span>muted (NST natural)</span><span>vivid (force-match source)</span>
+        </div>
       </div>
       <div className="flex items-center gap-2 text-sm">
         <input

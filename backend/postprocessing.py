@@ -55,6 +55,7 @@ def postprocess(
     content_processed_pil: Image.Image,
     source_processed_pil: Image.Image,
     source_mask: np.ndarray,
+    color_strength: float = 0.5,
 ) -> Image.Image:
     arr = np.array(stylized_pil.convert("RGB"))
 
@@ -64,9 +65,13 @@ def postprocess(
     # DIP: bilateral filter (mild, edge-preserving denoise)
     arr = cv2.bilateralFilter(arr, d=5, sigmaColor=25, sigmaSpace=5)
 
-    # histogram match LAB to source garment region
-    source_arr = np.array(source_processed_pil.convert("RGB"))
-    arr = _match_histograms_lab(arr, source_arr, source_mask)
+    # COLOUR: blend toward source's LAB histogram, weighted by color_strength.
+    # 0.0 = NST's natural (muted) chroma; 1.0 = full force-match to source plaid.
+    if color_strength > 0.0:
+        source_arr = np.array(source_processed_pil.convert("RGB"))
+        matched = _match_histograms_lab(arr, source_arr, source_mask).astype(np.float32)
+        base = arr.astype(np.float32)
+        arr = np.clip((1.0 - color_strength) * base + color_strength * matched, 0, 255).astype(np.uint8)
 
     # YIQ luminance swap with content (drape lock)
     content_arr = np.array(content_processed_pil.convert("RGB"))

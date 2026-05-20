@@ -18,6 +18,7 @@ backend/jobs/*
 /*.jpg
 /*.jpeg
 /*.webp
+/*.avif
 
 # Paper-text extraction (intermediate, not part of repo)
 paper_text.txt

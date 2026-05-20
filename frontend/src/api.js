@@ -15,7 +15,7 @@ export async function postSegment(imageFile, points) {
   return await r.blob();
 }
 
-export async function postStylize({ targetImage, sourceImage, targetMask, sourceMask, ratio, iterations, suppressTargetPattern }) {
+export async function postStylize({ targetImage, sourceImage, targetMask, sourceMask, ratio, iterations, suppressTargetPattern, coarseFraction, colorStrength }) {
   const fd = new FormData();
   fd.append("target_image", targetImage);
   fd.append("source_image", sourceImage);
@@ -24,6 +24,8 @@ export async function postStylize({ targetImage, sourceImage, targetMask, source
   fd.append("alpha_beta_ratio", String(ratio));
   fd.append("iterations", String(iterations));
   fd.append("suppress_target_pattern", suppressTargetPattern ? "true" : "false");
+  fd.append("coarse_fraction", String(coarseFraction));
+  fd.append("color_strength", String(colorStrength));
   const r = await fetch(`${BASE}/stylize`, { method: "POST", body: fd });
   if (!r.ok) throw new Error(`stylize failed: ${r.status}`);
   return (await r.json()).job_id;

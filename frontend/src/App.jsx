@@ -17,6 +17,8 @@ export default function App() {
   const [ratio, set_ratio] = useState(1e-4);
   const [iterations, set_iterations] = useState(500);
   const [suppress_target_pattern, set_suppress] = useState(false);
+  const [coarse_fraction, set_coarse_fraction] = useState(0.4);  // §6.2 split: 0.4 -> 40% coarse / 60% fine
+  const [color_strength, set_color_strength] = useState(0.5);    // 0..1 blend toward source LAB hist
 
   // job state
   const [job_id, set_job_id] = useState(null);
@@ -75,6 +77,8 @@ export default function App() {
         ratio,
         iterations,
         suppressTargetPattern: suppress_target_pattern,
+        coarseFraction: coarse_fraction,
+        colorStrength: color_strength,
       });
       set_job_id(id);
     } catch (e) {
@@ -107,9 +111,13 @@ export default function App() {
           ratio={ratio}
           iterations={iterations}
           suppressTargetPattern={suppress_target_pattern}
+          coarseFraction={coarse_fraction}
+          colorStrength={color_strength}
           onRatioChange={set_ratio}
           onIterChange={set_iterations}
           onSuppressChange={set_suppress}
+          onCoarseFractionChange={set_coarse_fraction}
+          onColorStrengthChange={set_color_strength}
         />
         <div className="space-y-4">
           <StylizeButton disabled={!can_submit} onClick={handle_submit} />

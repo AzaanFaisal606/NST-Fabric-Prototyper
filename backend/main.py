@@ -25,8 +25,9 @@ from composite import composite_back
 from nst import stylize
 from vgg import load_vgg
 
-# Coarse-to-fine split (Gatys 2017 §6.2). Total iters split between the two stages.
-COARSE_FRACTION = 0.4              # 40% coarse @ 384, 60% fine @ 768
+# Coarse-to-fine split (Gatys 2017 §6.2). Default fraction of total iters spent
+# on the coarse pass — overridable per request via the coarse_fraction form field.
+DEFAULT_COARSE_FRACTION = 0.4      # 40% coarse @ 384, 60% fine @ 768
 
 # logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -152,6 +153,8 @@ def _run_job(
     target_mask_path: Path, source_mask_path: Path,
     alpha: float, beta: float, iters: int,
     suppress_target_pattern: bool,
+    coarse_fraction: float,
+    color_strength: float,
 ):
     # coarse-to-fine pipeline (Gatys 2017 §6.2): preprocess x2 -> NST coarse -> upsample -> NST fine -> postprocess -> composite
     state = jobs[job_id]
@@ -160,12 +163,12 @@ def _run_job(
         state.status = "processing"
         state.total_iter = iters
 
-        # iteration split between coarse and fine stages
-        coarse_iters = max(1, int(iters * COARSE_FRACTION))
+        # iteration split between coarse and fine stages (per-request)
+        coarse_iters = max(1, int(iters * coarse_fraction))
         fine_iters = max(1, iters - coarse_iters)
         log.info(
             f"[{job_id}] start total_iters={iters} (coarse={coarse_iters}@{COARSE_SHORT_SIDE} fine={fine_iters}@{TARGET_SHORT_SIDE}) "
-            f"ratio={alpha/beta:.1e} suppress={suppress_target_pattern}"
+            f"ratio={alpha/beta:.1e} suppress={suppress_target_pattern} coarse_fraction={coarse_fraction:.2f} color_strength={color_strength:.2f}"
         )
 
         # ---------- PREPROCESS (both stages, fresh from original PIL) ----------
@@ -245,6 +248,7 @@ def _run_job(
             content_processed_pil=target_processed_pil,
             source_processed_pil=source_processed_pil,
             source_mask=source_mask_fine,
+            color_strength=color_strength,
         )
 
         # ---------- COMPOSITE (at fine NST resolution — no upscale back to native) ----------
@@ -277,6 +281,8 @@ async def stylize_endpoint(
     alpha_beta_ratio: float = Form(1e-4),
     iterations: int = Form(500),
     suppress_target_pattern: str = Form("false"),
+    coarse_fraction: float = Form(DEFAULT_COARSE_FRACTION),
+    color_strength: float = Form(0.5),
 ):
     # validate images
     target_data = await target_image.read()
@@ -295,6 +301,10 @@ async def stylize_endpoint(
         raise HTTPException(422, "alpha_beta_ratio out of range")
     if not (100 <= iterations <= 1000):
         raise HTTPException(422, "iterations out of range (100..1000)")
+    if not (0.1 <= coarse_fraction <= 0.9):
+        raise HTTPException(422, "coarse_fraction out of range (0.1..0.9)")
+    if not (0.0 <= color_strength <= 1.0):
+        raise HTTPException(422, "color_strength out of range (0..1)")
 
     # α=1 fixed, β derived from ratio
     alpha = 1.0
@@ -320,7 +330,7 @@ async def stylize_endpoint(
         _run_job, job_id,
         target_path, source_path,
         target_mask_path, source_mask_path,
-        alpha, beta, iterations, suppress,
+        alpha, beta, iterations, suppress, coarse_fraction, color_strength,
     )
     return {"job_id": job_id}
 
