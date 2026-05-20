@@ -1,5 +1,8 @@
-export default function ParamSliders({ ratio, iterations, onRatioChange, onIterChange }) {
-  // ratio slider works in log-space: slider=0..100 -> ratio=10^(-5 + slider*4/100)
+export default function ParamSliders({
+  ratio, iterations, suppressTargetPattern,
+  onRatioChange, onIterChange, onSuppressChange,
+}) {
+  // log-scale slider: 0..100 -> ratio 1e-5..1e-1
   const sliderVal = ((Math.log10(ratio) + 5) / 4) * 100;
 
   function setFromSlider(v) {
@@ -30,11 +33,23 @@ export default function ParamSliders({ ratio, iterations, onRatioChange, onIterC
           <span className="text-neutral-400">{iterations}</span>
         </div>
         <input
-          type="range" min={100} max={600} step={10}
+          type="range" min={100} max={1000} step={50}
           value={iterations}
           onChange={(e) => onIterChange(Number(e.target.value))}
           className="w-full"
         />
+      </div>
+      <div className="flex items-center gap-2 text-sm">
+        <input
+          id="suppress"
+          type="checkbox"
+          checked={suppressTargetPattern}
+          onChange={(e) => onSuppressChange(e.target.checked)}
+          className="accent-emerald-500"
+        />
+        <label htmlFor="suppress" className="cursor-pointer">
+          Target garment has a pattern (suppress before stylization)
+        </label>
       </div>
     </div>
   );

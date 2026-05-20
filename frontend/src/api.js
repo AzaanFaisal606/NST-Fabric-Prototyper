@@ -1,19 +1,29 @@
 const BASE = "http://localhost:8000";
 
-export async function getFonts() {
-  const r = await fetch(`${BASE}/fonts`);
-  if (!r.ok) throw new Error("fonts fetch failed");
-  return (await r.json()).fonts;
+export async function getHealth() {
+  const r = await fetch(`${BASE}/health`);
+  if (!r.ok) throw new Error("health fetch failed");
+  return await r.json();
 }
 
-export async function postStylize({ styleFile, font, charset, custom, ratio, iterations }) {
+export async function postSegment(imageFile, points) {
   const fd = new FormData();
-  fd.append("style_image", styleFile);
-  fd.append("font", font);
-  fd.append("charset", charset);
-  fd.append("custom", custom);
+  fd.append("image", imageFile);
+  fd.append("points", JSON.stringify(points));
+  const r = await fetch(`${BASE}/segment`, { method: "POST", body: fd });
+  if (!r.ok) throw new Error(`segment failed: ${r.status}`);
+  return await r.blob();
+}
+
+export async function postStylize({ targetImage, sourceImage, targetMask, sourceMask, ratio, iterations, suppressTargetPattern }) {
+  const fd = new FormData();
+  fd.append("target_image", targetImage);
+  fd.append("source_image", sourceImage);
+  fd.append("target_mask", targetMask, "target_mask.png");
+  fd.append("source_mask", sourceMask, "source_mask.png");
   fd.append("alpha_beta_ratio", String(ratio));
   fd.append("iterations", String(iterations));
+  fd.append("suppress_target_pattern", suppressTargetPattern ? "true" : "false");
   const r = await fetch(`${BASE}/stylize`, { method: "POST", body: fd });
   if (!r.ok) throw new Error(`stylize failed: ${r.status}`);
   return (await r.json()).job_id;
@@ -33,8 +43,4 @@ export async function getManifest(jobId) {
 
 export function resultUrl(path) {
   return `${BASE}${path}`;
-}
-
-export function zipUrl(jobId) {
-  return `${BASE}/result/${jobId}/zip`;
 }

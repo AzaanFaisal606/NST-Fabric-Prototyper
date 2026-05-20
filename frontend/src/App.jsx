@@ -1,36 +1,45 @@
 import { useEffect, useState } from "react";
-import StyleUploader from "./components/StyleUploader";
-import FontSelector from "./components/FontSelector";
-import CharSetSelector from "./components/CharSetSelector";
+import GarmentCanvas from "./components/GarmentCanvas";
 import ParamSliders from "./components/ParamSliders";
 import StylizeButton from "./components/StylizeButton";
 import ProgressBar from "./components/ProgressBar";
-import ResultGrid from "./components/ResultGrid";
-import { postStylize, getStatus, getManifest } from "./api";
+import ResultViewer from "./components/ResultViewer";
+import { getHealth, postStylize, getStatus, getManifest } from "./api";
 
 export default function App() {
-  const [styleFile, setStyleFile] = useState(null);
-  const [font, setFont] = useState("");
-  const [charset, setCharset] = useState("uppercase");
-  const [custom, setCustom] = useState("");
-  const [ratio, setRatio] = useState(1e-4);
-  const [iterations, setIterations] = useState(300);
+  // segmentation outputs (image File + mask Blob per side)
+  const [target_image, set_target_image] = useState(null);
+  const [target_mask, set_target_mask] = useState(null);
+  const [source_image, set_source_image] = useState(null);
+  const [source_mask, set_source_mask] = useState(null);
 
-  const [jobId, setJobId] = useState(null);
-  const [status, setStatus] = useState(null);
-  const [manifest, setManifest] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
+  // stylize params
+  const [ratio, set_ratio] = useState(1e-4);
+  const [iterations, set_iterations] = useState(500);
+  const [suppress_target_pattern, set_suppress] = useState(false);
+
+  // job state
+  const [job_id, set_job_id] = useState(null);
+  const [status, set_status] = useState(null);
+  const [manifest, set_manifest] = useState(null);
+  const [submitting, set_submitting] = useState(false);
+
+  // device label from /health
+  const [device, set_device] = useState(null);
+  useEffect(() => {
+    getHealth().then((h) => set_device(h.device)).catch(() => set_device("unknown"));
+  }, []);
 
   // poll /status while job is processing
   useEffect(() => {
-    if (!jobId || (status && (status.status === "complete" || status.status === "error"))) return;
+    if (!job_id || (status && (status.status === "complete" || status.status === "error"))) return;
     const id = setInterval(async () => {
       try {
-        const s = await getStatus(jobId);
-        setStatus(s);
+        const s = await getStatus(job_id);
+        set_status(s);
         if (s.status === "complete") {
-          const m = await getManifest(jobId);
-          setManifest(m);
+          const m = await getManifest(job_id);
+          set_manifest(m);
           clearInterval(id);
         } else if (s.status === "error") {
           clearInterval(id);
@@ -40,49 +49,75 @@ export default function App() {
       }
     }, 1500);
     return () => clearInterval(id);
-  }, [jobId, status?.status]);
+  }, [job_id, status?.status]);
 
-  async function handleSubmit() {
-    if (!styleFile || !font) return;
-    setSubmitting(true);
-    setManifest(null);
-    setStatus({ status: "queued", progress: 0 });
+  async function handle_target_ready(mask_blob, image_file) {
+    set_target_mask(mask_blob);
+    set_target_image(image_file);
+  }
+
+  async function handle_source_ready(mask_blob, image_file) {
+    set_source_mask(mask_blob);
+    set_source_image(image_file);
+  }
+
+  async function handle_submit() {
+    if (!target_image || !target_mask || !source_image || !source_mask) return;
+    set_submitting(true);
+    set_manifest(null);
+    set_status({ status: "queued", progress: 0 });
     try {
-      const id = await postStylize({ styleFile, font, charset, custom, ratio, iterations });
-      setJobId(id);
+      const id = await postStylize({
+        targetImage: target_image,
+        sourceImage: source_image,
+        targetMask: target_mask,
+        sourceMask: source_mask,
+        ratio,
+        iterations,
+        suppressTargetPattern: suppress_target_pattern,
+      });
+      set_job_id(id);
     } catch (e) {
-      setStatus({ status: "error", error_message: String(e) });
+      set_status({ status: "error", error_message: String(e) });
     } finally {
-      setSubmitting(false);
+      set_submitting(false);
     }
   }
 
-  const canSubmit = !!styleFile && !!font && !submitting && (status?.status !== "processing");
+  const can_submit =
+    !!target_image && !!target_mask && !!source_image && !!source_mask &&
+    !submitting && (status?.status !== "processing");
 
   return (
-    <div className="min-h-screen p-6 max-w-5xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">NST Font Stylizer</h1>
+    <div className="min-h-screen p-6 max-w-6xl mx-auto space-y-6">
+      <div className="flex items-baseline justify-between">
+        <h1 className="text-2xl font-bold">NST Garment Stylizer</h1>
+        <span className="text-xs text-neutral-400">
+          running on {device ?? "..."}
+        </span>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <GarmentCanvas label="Target (garment to re-style)" onMaskReady={handle_target_ready} />
+        <GarmentCanvas label="Source (pattern / fabric)"   onMaskReady={handle_source_ready} />
+      </div>
 
       <div className="grid md:grid-cols-2 gap-6 bg-neutral-800/50 border border-neutral-700 rounded p-4">
+        <ParamSliders
+          ratio={ratio}
+          iterations={iterations}
+          suppressTargetPattern={suppress_target_pattern}
+          onRatioChange={set_ratio}
+          onIterChange={set_iterations}
+          onSuppressChange={set_suppress}
+        />
         <div className="space-y-4">
-          <StyleUploader onChange={setStyleFile} />
-          <FontSelector value={font} onChange={setFont} />
-          <CharSetSelector
-            charset={charset} custom={custom}
-            onCharsetChange={setCharset} onCustomChange={setCustom}
-          />
-        </div>
-        <div className="space-y-4">
-          <ParamSliders
-            ratio={ratio} iterations={iterations}
-            onRatioChange={setRatio} onIterChange={setIterations}
-          />
-          <StylizeButton disabled={!canSubmit} onClick={handleSubmit} />
+          <StylizeButton disabled={!can_submit} onClick={handle_submit} />
           <ProgressBar status={status} />
         </div>
       </div>
 
-      <ResultGrid jobId={jobId} manifest={manifest} />
+      <ResultViewer jobId={job_id} manifest={manifest} />
     </div>
   );
 }

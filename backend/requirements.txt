@@ -1,10 +1,13 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 python-multipart==0.0.10
-torch==2.9.0+cpu
-torchvision==0.24.0+cpu
+# torch + torchvision installed separately per machine (see CLAUDE.md "GPU setup")
+#   CPU:  pip install torch==2.9.0 torchvision==0.24.0
+#   CUDA: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 pillow>=11.0.0
 numpy>=2.0.0
 scipy>=1.14.0
 scikit-image>=0.24.0
 opencv-python-headless>=4.10.0
+opencv-python>=4.10.0
+SAM-2 @ git+https://github.com/facebookresearch/sam2.git

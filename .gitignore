@@ -13,6 +13,12 @@ dist/
 backend/jobs/*
 !backend/jobs/.keep
 
+# Loose test images / outputs at project root (use frontend or jobs/ for actual runs)
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
+
 # OS
 .DS_Store
 Thumbs.db
@@ -20,3 +26,12 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Local agent / tooling
+CLAUDE.md
+.claude/
+.superpowers/
+.worktrees/
+
+# Model weights (download separately)
+backend/weights/
