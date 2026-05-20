@@ -12,15 +12,20 @@ LAYER_INDEX = {
     "conv5_1": 28,
 }
 
-# style layers (multi-scale texture, paper §3)
+# ==== STYLE LAYERS  (README: Shared components → Style layers) ====
+# five viewpoints, fine -> coarse; each one is asked to match the source's Gram fingerprint
 STYLE_LAYERS = ["conv1_1", "conv2_1", "conv3_1", "conv4_1", "conv5_1"]
-# content layer (paper §3.2)
+
+# ==== CONTENT LAYER  (README: Shared components → Content layer) ====
+# mid-deep layer: keeps the "what's in the picture" without locking pixel-by-pixel detail
 CONTENT_LAYER = "conv4_2"
 
 
 def load_vgg(device: torch.device) -> nn.Sequential:
-    # load pretrained VGG-19 features, swap max-pool for avg-pool (paper §2), freeze
+    # ==== MODEL  (README: Shared components → Deep learning model) ====
+    # borrow VGG-19's eyes — pretrained on ImageNet, frozen here (we never train it)
     features = vgg19(weights=VGG19_Weights.DEFAULT).features
+    # replace max-pool with avg-pool — Gatys 2016 §2, smoother textures
     swapped = nn.Sequential()
     for i, layer in enumerate(features):
         if isinstance(layer, nn.MaxPool2d):

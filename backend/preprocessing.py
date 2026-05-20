@@ -6,6 +6,7 @@ import torch
 from PIL import Image
 from torchvision import transforms
 
+# ==== IMAGE PREPROCESSING  (README: Shared components → Image preprocessing) ====
 # ImageNet normalization (VGG was trained with these)
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD  = [0.229, 0.224, 0.225]
@@ -34,7 +35,7 @@ def preprocess_image(
     # DIP: RGB -> LAB color-space conversion
     lab = cv2.cvtColor(arr, cv2.COLOR_RGB2LAB)
 
-    # DIP: histogram equalization on L channel
+    # hist-eq evens out lighting on the L channel (dark photos and bright photos start from the same base)
     lab[..., 0] = cv2.equalizeHist(lab[..., 0])
 
     # LAB -> RGB
@@ -43,9 +44,9 @@ def preprocess_image(
     # DIP: Gaussian blur (sensor-noise suppression)
     arr = cv2.GaussianBlur(arr, ksize=(0, 0), sigmaX=0.5, sigmaY=0.5)
 
-    # optional pattern suppression inside garment region only
+    # optional: flatten the target garment's existing print so it doesn't bleed through NST
     if suppress_pattern and mask is not None:
-        # DIP: bilateral filter (large sigma_color: pattern suppression while preserving folds)
+        # bilateral smooths textures but keeps big edges (folds, garment silhouette)
         filtered = cv2.bilateralFilter(arr, d=15, sigmaColor=80, sigmaSpace=15)
         m3 = np.clip(mask, 0.0, 1.0).astype(np.float32)[..., None]
         arr = (filtered.astype(np.float32) * m3 + arr.astype(np.float32) * (1.0 - m3))

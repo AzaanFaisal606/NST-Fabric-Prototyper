@@ -59,11 +59,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# device + model load (once at startup)
+# pick GPU if available, else CPU — every tensor in this app follows this
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log.info(f"device: {device}")
+# load the NST model once at startup, kept warm in memory for every request
 vgg = load_vgg(device)                                # MODEL: VGG-19 (frozen, avg-pool swap)
 log.info("vgg-19 loaded")
+# load the segmentation model once at startup too
 sam2_predictor = load_sam2(device)                    # MODEL: SAM2 (sam2_hiera_base_plus)
 log.info("sam2 loaded")
 
@@ -223,6 +225,7 @@ def _run_job(
         state.error_message = str(e)
 
 
+# ==== STYLIZE ENDPOINT  (README: How to use → Step 4 Stylize and download) ====
 @app.post("/stylize")
 async def stylize_endpoint(
     background: BackgroundTasks,

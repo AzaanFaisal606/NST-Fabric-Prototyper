@@ -7,14 +7,15 @@ from vgg import extract_features, STYLE_LAYERS, CONTENT_LAYER
 # STYLE layers (paper §3, equal weights w_l = 1/5)
 
 
+# Gram matrix = the network's "summary" of which features fire together at a layer
 def gram_matrix(feat: torch.Tensor) -> torch.Tensor:
     b, c, h, w = feat.shape
     flat = feat.view(b, c, h * w)
     return flat @ flat.transpose(1, 2) / (c * h * w)
 
 
+# masked Gram — same idea, but only counting pixels inside the garment region
 def masked_gram(feat: torch.Tensor, mask_feat: torch.Tensor) -> torch.Tensor:
-    # Gram matrix sampled only inside mask region (style transfer ignores background)
     b, c, h, w = feat.shape
     m = mask_feat.view(b, 1, h * w)
     flat = feat.view(b, c, h * w) * m
@@ -43,7 +44,7 @@ def stylize(
     """
     content_target = extract_features(content_t, vgg, [CONTENT_LAYER])[CONTENT_LAYER].detach()
 
-    # style targets — masked Gram if style_mask is provided, else plain Gram
+    # style targets — what the source's texture statistics look like at each layer (masked to garment)
     style_feats = extract_features(style_t, vgg, STYLE_LAYERS)
     style_targets: dict[str, torch.Tensor] = {}
     for l in STYLE_LAYERS:

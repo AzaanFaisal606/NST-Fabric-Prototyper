@@ -24,8 +24,9 @@ backend/jobs/*
 *.tiff
 *.tif
 
-# Markdown / docs (project intentionally has no .md docs in the repo)
+# Markdown / docs (project intentionally has no .md docs in the repo, EXCEPT the root README.md)
 *.md
+!/README.md
 docs/
 
 # Intermediate / extracted artifacts

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { postSegment } from "../api";
 
+// ==== SEGMENTATION UI  (README: How to use → Step 1/2 Pick & segment) ====
 export default function GarmentCanvas({ label, onMaskReady }) {
   const [image_file, set_image_file] = useState(null);
   const [image_url, set_image_url] = useState(null);
@@ -38,6 +39,7 @@ export default function GarmentCanvas({ label, onMaskReady }) {
     if (el) set_image_dims({ w: el.naturalWidth, h: el.naturalHeight });
   }
 
+  // every click is sent to SAM2 with all previous clicks; mask redraws each time
   async function handle_click(e) {
     if (!image_file || !image_dims) return;
     const el = img_ref.current;
@@ -92,6 +94,7 @@ export default function GarmentCanvas({ label, onMaskReady }) {
             className="max-w-full max-h-[400px] cursor-crosshair select-none rounded"
             draggable={false}
           />
+          {/* luminance-mode CSS mask paints the emerald colour only over the masked region */}
           {mask_url && (
             <div
               className="absolute inset-0 w-full h-full pointer-events-none rounded"

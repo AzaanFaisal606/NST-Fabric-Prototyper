@@ -12,6 +12,7 @@ export default function ParamSliders({
 
   return (
     <div className="space-y-4">
+      {/* ==== Slider: Style ↔ Content (α/β ratio)  (README same heading) ==== */}
       <div>
         <div className="flex justify-between text-sm">
           <span>Style ↔ Content (α/β ratio)</span>
@@ -27,6 +28,7 @@ export default function ParamSliders({
           <span>more style</span><span>more content</span>
         </div>
       </div>
+      {/* ==== Slider: Iterations  (README same heading) ==== */}
       <div>
         <div className="flex justify-between text-sm">
           <span>Iterations</span>
@@ -39,6 +41,7 @@ export default function ParamSliders({
           className="w-full"
         />
       </div>
+      {/* ==== Toggle: Suppress target pattern  (README same heading) ==== */}
       <div className="flex items-center gap-2 text-sm">
         <input
           id="suppress"
