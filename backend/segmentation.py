@@ -2,7 +2,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-# MODEL: SAM2 (sam2_hiera_base_plus)
+# ==== SEGMENTATION MODEL  (README: Shared components → Segmentation model) ====
+# SAM2 (Segment Anything 2 from Meta) — click-driven garment masks, no custom training
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 
@@ -33,7 +34,7 @@ def segment_with_clicks(
     if len(points) == 0:
         raise ValueError("at least one click point required")
 
-    # encode the image once (heavy ViT pass)
+    # heavy step: ViT encodes the image once — every click after this is fast
     predictor.set_image(np_img)
 
     point_coords = np.array([[p["x"], p["y"]] for p in points], dtype=np.float32)

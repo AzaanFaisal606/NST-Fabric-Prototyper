@@ -6,6 +6,7 @@ export async function getHealth() {
   return await r.json();
 }
 
+// send image + click points to /segment, get back the mask PNG
 export async function postSegment(imageFile, points) {
   const fd = new FormData();
   fd.append("image", imageFile);
@@ -15,6 +16,7 @@ export async function postSegment(imageFile, points) {
   return await r.blob();
 }
 
+// kicks off the full backend pipeline, returns a job_id we poll
 export async function postStylize({ targetImage, sourceImage, targetMask, sourceMask, ratio, iterations, suppressTargetPattern, coarseFraction, colorStrength }) {
   const fd = new FormData();
   fd.append("target_image", targetImage);

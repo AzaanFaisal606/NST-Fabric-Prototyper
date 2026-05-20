@@ -50,6 +50,7 @@ def _yiq_swap(stylized_arr: np.ndarray, content_arr: np.ndarray) -> np.ndarray:
     return np.clip(out * 255.0, 0, 255).astype(np.uint8)
 
 
+# ==== IMAGE POSTPROCESSING  (README: Shared components → Image postprocessing) ====
 def postprocess(
     stylized_pil: Image.Image,
     content_processed_pil: Image.Image,
@@ -59,25 +60,25 @@ def postprocess(
 ) -> Image.Image:
     arr = np.array(stylized_pil.convert("RGB"))
 
-    # DIP: median filter (salt-and-pepper from L-BFGS)
+    # clean L-BFGS speckle (salt-and-pepper noise)
     arr = cv2.medianBlur(arr, ksize=3)
 
-    # DIP: bilateral filter (mild, edge-preserving denoise)
+    # mild edge-preserving denoise of NST artifacts
     arr = cv2.bilateralFilter(arr, d=5, sigmaColor=25, sigmaSpace=5)
 
-    # COLOUR: blend toward source's LAB histogram, weighted by color_strength.
-    # 0.0 = NST's natural (muted) chroma; 1.0 = full force-match to source plaid.
+    # ==== COLOR STRENGTH  (README: Refinements → Colour strength tuning) ====
+    # blend stylized arr toward source's LAB histogram by color_strength (0 = leave alone, 1 = force-match)
     if color_strength > 0.0:
         source_arr = np.array(source_processed_pil.convert("RGB"))
         matched = _match_histograms_lab(arr, source_arr, source_mask).astype(np.float32)
         base = arr.astype(np.float32)
         arr = np.clip((1.0 - color_strength) * base + color_strength * matched, 0, 255).astype(np.uint8)
 
-    # YIQ luminance swap with content (drape lock)
+    # YIQ Y-swap — copy target's brightness back so folds and drape stay visible
     content_arr = np.array(content_processed_pil.convert("RGB"))
     arr = _yiq_swap(arr, content_arr)
 
-    # DIP: Laplacian sharpening (k=0.3, edge restoration)
+    # Laplacian sharpening — restore a little crispness lost to the blurring above
     lap = cv2.Laplacian(arr, cv2.CV_32F, ksize=3)
     arr = np.clip(arr.astype(np.float32) - 0.3 * lap, 0, 255).astype(np.uint8)
 

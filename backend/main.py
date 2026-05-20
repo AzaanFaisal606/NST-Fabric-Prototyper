@@ -64,11 +64,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# device + model load (once at startup)
+# pick GPU if available, else CPU — every tensor in this app follows this
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log.info(f"device: {device}")
+# load the NST model once at startup, kept warm in memory for every request
 vgg = load_vgg(device)                                # MODEL: VGG-19 (frozen, avg-pool swap)
 log.info("vgg-19 loaded")
+# load the segmentation model once at startup too
 sam2_predictor = load_sam2(device)                    # MODEL: SAM2 (sam2_hiera_base_plus)
 log.info("sam2 loaded")
 
@@ -156,6 +158,7 @@ def _run_job(
     coarse_fraction: float,
     color_strength: float,
 ):
+    # ==== TWO-STAGE NST ORCHESTRATION  (README: Refinements → Two-stage NST) ====
     # coarse-to-fine pipeline (Gatys 2017 §6.2): preprocess x2 -> NST coarse -> upsample -> NST fine -> postprocess -> composite
     state = jobs[job_id]
     out_dir = JOBS_DIR / job_id
@@ -163,7 +166,7 @@ def _run_job(
         state.status = "processing"
         state.total_iter = iters
 
-        # iteration split between coarse and fine stages (per-request)
+        # split the iteration budget between the coarse pass (macro patterns) and the fine pass (detail)
         coarse_iters = max(1, int(iters * coarse_fraction))
         fine_iters = max(1, iters - coarse_iters)
         log.info(
@@ -253,6 +256,7 @@ def _run_job(
 
         # ---------- COMPOSITE (at fine NST resolution — no upscale back to native) ----------
         state.stage = "composite"
+        # composite at fine NST resolution — no upscale back to native (prototyping speed)
         target_at_fine = target_pil_orig.resize((fine_w, fine_h), Image.LANCZOS)
         composited = composite_back(
             final_nst_res,
@@ -271,6 +275,7 @@ def _run_job(
         state.error_message = str(e)
 
 
+# ==== STYLIZE ENDPOINT  (README: How to use → Step 4 Stylize and download) ====
 @app.post("/stylize")
 async def stylize_endpoint(
     background: BackgroundTasks,

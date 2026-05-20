@@ -16,6 +16,7 @@ export default function ParamSliders({
 
   return (
     <div className="space-y-4">
+      {/* ==== Slider: Style ↔ Content (α/β ratio)  (README same heading) ==== */}
       <div>
         <div className="flex justify-between text-sm">
           <span>Style ↔ Content (α/β ratio)</span>
@@ -31,6 +32,7 @@ export default function ParamSliders({
           <span>more style</span><span>more content</span>
         </div>
       </div>
+      {/* ==== Slider: Iterations  (README same heading) ==== */}
       <div>
         <div className="flex justify-between text-sm">
           <span>Iterations (total)</span>
@@ -43,6 +45,7 @@ export default function ParamSliders({
           className="w-full"
         />
       </div>
+      {/* ==== Slider: Coarse / fine split  (README: Refinements → Coarse → fine split) ==== */}
       <div>
         <div className="flex justify-between text-sm">
           <span>Coarse / fine split</span>
@@ -58,6 +61,7 @@ export default function ParamSliders({
           <span>more fine (detail / colour)</span><span>more coarse (macro patterns)</span>
         </div>
       </div>
+      {/* ==== Slider: Colour strength  (README: Refinements → Colour strength tuning) ==== */}
       <div>
         <div className="flex justify-between text-sm">
           <span>Color strength</span>
@@ -73,6 +77,7 @@ export default function ParamSliders({
           <span>muted (NST natural)</span><span>vivid (force-match source)</span>
         </div>
       </div>
+      {/* ==== Toggle: Suppress target pattern  (README same heading) ==== */}
       <div className="flex items-center gap-2 text-sm">
         <input
           id="suppress"

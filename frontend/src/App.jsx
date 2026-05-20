@@ -13,7 +13,7 @@ export default function App() {
   const [source_image, set_source_image] = useState(null);
   const [source_mask, set_source_mask] = useState(null);
 
-  // stylize params
+  // ==== SLIDER STATE  (README: How to use → Step 3 Adjust sliders) ====
   const [ratio, set_ratio] = useState(1e-4);
   const [iterations, set_iterations] = useState(500);
   const [suppress_target_pattern, set_suppress] = useState(false);
@@ -69,6 +69,7 @@ export default function App() {
     set_manifest(null);
     set_status({ status: "queued", progress: 0 });
     try {
+      // send everything (images, masks, slider values) to the backend
       const id = await postStylize({
         targetImage: target_image,
         sourceImage: source_image,
