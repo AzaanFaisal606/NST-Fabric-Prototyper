@@ -8,6 +8,7 @@ from typing import Optional
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
@@ -17,12 +18,15 @@ from torchvision.transforms.functional import to_pil_image
 from segmentation import load_sam2, segment_with_clicks
 from preprocessing import (
     preprocess_image, preprocess_mask, mask_to_tensor, denormalize,
-    TARGET_SHORT_SIDE,
+    TARGET_SHORT_SIDE, COARSE_SHORT_SIDE,
 )
 from postprocessing import postprocess
 from composite import composite_back
 from nst import stylize
 from vgg import load_vgg
+
+# Coarse-to-fine split (Gatys 2017 §6.2). Total iters split between the two stages.
+COARSE_FRACTION = 0.4              # 40% coarse @ 384, 60% fine @ 768
 
 # logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -149,74 +153,114 @@ def _run_job(
     alpha: float, beta: float, iters: int,
     suppress_target_pattern: bool,
 ):
-    # full pipeline: preprocess -> NST -> postprocess -> composite
+    # coarse-to-fine pipeline (Gatys 2017 §6.2): preprocess x2 -> NST coarse -> upsample -> NST fine -> postprocess -> composite
     state = jobs[job_id]
     out_dir = JOBS_DIR / job_id
     try:
         state.status = "processing"
         state.total_iter = iters
-        log.info(f"[{job_id}] start iters={iters} ratio={alpha/beta:.1e} suppress={suppress_target_pattern}")
 
-        # ---------- PREPROCESS ----------
+        # iteration split between coarse and fine stages
+        coarse_iters = max(1, int(iters * COARSE_FRACTION))
+        fine_iters = max(1, iters - coarse_iters)
+        log.info(
+            f"[{job_id}] start total_iters={iters} (coarse={coarse_iters}@{COARSE_SHORT_SIDE} fine={fine_iters}@{TARGET_SHORT_SIDE}) "
+            f"ratio={alpha/beta:.1e} suppress={suppress_target_pattern}"
+        )
+
+        # ---------- PREPROCESS (both stages, fresh from original PIL) ----------
         state.stage = "preprocess"
         target_pil_orig = Image.open(target_path).convert("RGB")
         source_pil_orig = Image.open(source_path).convert("RGB")
         target_mask_orig = _load_mask_png(target_mask_path.read_bytes(), target_pil_orig.size)
         source_mask_orig = _load_mask_png(source_mask_path.read_bytes(), source_pil_orig.size)
 
-        # masks resized to NST resolution (short-side=768)
-        target_mask_nst = preprocess_mask(target_mask_orig, TARGET_SHORT_SIDE)
-        source_mask_nst = preprocess_mask(source_mask_orig, TARGET_SHORT_SIDE)
+        # masks at each stage's NST resolution (used both as numpy and as tensors)
+        target_mask_coarse = preprocess_mask(target_mask_orig, COARSE_SHORT_SIDE)
+        source_mask_coarse = preprocess_mask(source_mask_orig, COARSE_SHORT_SIDE)
+        target_mask_fine   = preprocess_mask(target_mask_orig, TARGET_SHORT_SIDE)
+        source_mask_fine   = preprocess_mask(source_mask_orig, TARGET_SHORT_SIDE)
 
-        # DIP preprocessing on both images (target may apply bilateral pattern suppression)
-        target_t, target_processed_pil = preprocess_image(
+        # DIP preprocessing — independently at each scale (NOT cumulative); fine result reused for postprocess
+        target_t_coarse, _ = preprocess_image(
             target_pil_orig, device,
             suppress_pattern=suppress_target_pattern,
-            mask=target_mask_nst,
+            mask=target_mask_coarse,
+            short_side=COARSE_SHORT_SIDE,
         )
-        source_t, source_processed_pil = preprocess_image(source_pil_orig, device)
+        source_t_coarse, _ = preprocess_image(source_pil_orig, device, short_side=COARSE_SHORT_SIDE)
+        target_t_fine, target_processed_pil = preprocess_image(
+            target_pil_orig, device,
+            suppress_pattern=suppress_target_pattern,
+            mask=target_mask_fine,
+            short_side=TARGET_SHORT_SIDE,
+        )
+        source_t_fine, source_processed_pil = preprocess_image(
+            source_pil_orig, device, short_side=TARGET_SHORT_SIDE,
+        )
 
-        # masks -> tensors for NST
-        target_mask_t = mask_to_tensor(target_mask_nst, device)
-        source_mask_t = mask_to_tensor(source_mask_nst, device)
+        # mask tensors for each stage
+        target_mask_coarse_t = mask_to_tensor(target_mask_coarse, device)
+        source_mask_coarse_t = mask_to_tensor(source_mask_coarse, device)
+        target_mask_fine_t   = mask_to_tensor(target_mask_fine, device)
+        source_mask_fine_t   = mask_to_tensor(source_mask_fine, device)
 
-        # ---------- NST ----------
+        # ---------- NST COARSE (short-side 384, init=noise) ----------
         state.stage = "nst"
-        def cb(i: int):
+
+        def cb_coarse(i: int):
             state.current_iter = i
 
-        G = stylize(
-            target_t, source_t, vgg,
-            alpha=alpha, beta=beta, iters=iters,
-            progress_cb=cb,
+        G_coarse = stylize(
+            target_t_coarse, source_t_coarse, vgg,
+            alpha=alpha, beta=beta, iters=coarse_iters,
+            progress_cb=cb_coarse,
             init_noise=True,
-            content_mask=target_mask_t,     # target garment region (anchors content + masks G's Gram)
-            style_mask=source_mask_t,       # source garment region (style Gram targets)
+            content_mask=target_mask_coarse_t,
+            style_mask=source_mask_coarse_t,
         )
-        stylized_pil = to_pil_image(denormalize(G).squeeze(0).cpu())
 
-        # ---------- POSTPROCESS ----------
+        # ---------- UPSAMPLE BRIDGE (coarse -> fine resolution, bicubic on normalized tensor) ----------
+        fine_h, fine_w = target_t_fine.shape[2], target_t_fine.shape[3]
+        G_upsampled = F.interpolate(G_coarse, size=(fine_h, fine_w), mode="bicubic", align_corners=False)
+
+        # ---------- NST FINE (short-side 768, init=upsampled G_coarse) ----------
+        def cb_fine(i: int):
+            state.current_iter = coarse_iters + i        # cumulative across both stages
+
+        G_fine = stylize(
+            target_t_fine, source_t_fine, vgg,
+            alpha=alpha, beta=beta, iters=fine_iters,
+            progress_cb=cb_fine,
+            init_image=G_upsampled,
+            content_mask=target_mask_fine_t,
+            style_mask=source_mask_fine_t,
+        )
+        stylized_pil = to_pil_image(denormalize(G_fine).squeeze(0).cpu())
+
+        # ---------- POSTPROCESS (fine resolution) ----------
         state.stage = "postprocess"
         final_nst_res = postprocess(
             stylized_pil,
             content_processed_pil=target_processed_pil,
             source_processed_pil=source_processed_pil,
-            source_mask=source_mask_nst,
+            source_mask=source_mask_fine,
         )
 
-        # ---------- COMPOSITE ----------
+        # ---------- COMPOSITE (at fine NST resolution — no upscale back to native) ----------
         state.stage = "composite"
+        target_at_fine = target_pil_orig.resize((fine_w, fine_h), Image.LANCZOS)
         composited = composite_back(
             final_nst_res,
-            original_target_pil=target_pil_orig,
-            original_mask=target_mask_orig.astype(np.float32),
+            original_target_pil=target_at_fine,
+            original_mask=target_mask_fine.astype(np.float32),
             mask_blur_sigma=2.0,
         )
 
         composited.save(out_dir / "output.png")
         state.stage = None
         state.status = "complete"
-        log.info(f"[{job_id}] complete")
+        log.info(f"[{job_id}] complete output_size={composited.size}")
     except Exception as e:
         log.exception(f"[{job_id}] error")
         state.status = "error"

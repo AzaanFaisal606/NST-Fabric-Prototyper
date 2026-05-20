@@ -19,6 +19,9 @@ backend/jobs/*
 /*.jpeg
 /*.webp
 
+# Paper-text extraction (intermediate, not part of repo)
+paper_text.txt
+
 # OS
 .DS_Store
 Thumbs.db

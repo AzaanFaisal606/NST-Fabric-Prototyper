@@ -31,10 +31,13 @@ def stylize(
     iters: int,
     progress_cb: Optional[Callable[[int], None]] = None,
     init_noise: bool = True,
+    init_image: Optional[torch.Tensor] = None,
     content_mask: Optional[torch.Tensor] = None,
     style_mask: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
+    init_image: if provided, use this tensor as the starting G (coarse-to-fine init,
+                Gatys 2017 §6.2). Overrides init_noise.
     init_noise: start G from noise instead of content (option A).
     content_mask: [1,1,H,W] in [0,1] — 1 = target garment region, 0 = background.
                   Weights content loss and masks G's Gram so only garment is constrained.
@@ -56,7 +59,10 @@ def stylize(
         else:
             style_targets[l] = gram_matrix(style_feats[l]).detach()
 
-    if init_noise:
+    if init_image is not None:
+        # COARSE-TO-FINE: start from upsampled coarse-stage result (Gatys 2017 §6.2)
+        G = init_image.detach().clone().requires_grad_(True)
+    elif init_noise:
         G = torch.randn_like(content_t).mul(0.01).requires_grad_(True)
     else:
         G = content_t.clone().requires_grad_(True)

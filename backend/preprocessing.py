@@ -9,7 +9,8 @@ from torchvision import transforms
 # ImageNet normalization (VGG was trained with these)
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD  = [0.229, 0.224, 0.225]
-TARGET_SHORT_SIDE = 768
+TARGET_SHORT_SIDE = 768            # fine-stage NST resolution
+COARSE_SHORT_SIDE = 384            # coarse-stage NST resolution (Gatys 2017 §6.2, ~500² sweet spot)
 
 
 def _resize_short_side(img: Image.Image, short_side: int) -> Image.Image:
@@ -25,10 +26,11 @@ def preprocess_image(
     device: torch.device,
     suppress_pattern: bool = False,
     mask: Optional[np.ndarray] = None,
+    short_side: int = TARGET_SHORT_SIDE,
 ) -> tuple[torch.Tensor, Image.Image]:
-    # resize short side -> 768 (Lanczos), keep aspect ratio
+    # resize short side -> short_side (Lanczos), keep aspect ratio
     img = img.convert("RGB")
-    img = _resize_short_side(img, TARGET_SHORT_SIDE)
+    img = _resize_short_side(img, short_side)
     arr = np.array(img)
 
     # DIP: RGB -> LAB color-space conversion
