@@ -13,14 +13,22 @@ dist/
 backend/jobs/*
 !backend/jobs/.keep
 
-# Loose test images / outputs at project root (use frontend or jobs/ for actual runs)
-/*.png
-/*.jpg
-/*.jpeg
-/*.webp
-/*.avif
+# Images anywhere in repo (test inputs, generated outputs, screenshots)
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.avif
+*.bmp
+*.gif
+*.tiff
+*.tif
 
-# Paper-text extraction (intermediate, not part of repo)
+# Markdown / docs (project intentionally has no .md docs in the repo)
+*.md
+docs/
+
+# Intermediate / extracted artifacts (paper text dumps, but keep requirements.txt)
 paper_text.txt
 
 # OS
@@ -30,12 +38,15 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+*.swp
 
-# Local agent / tooling
+# Local agent / tooling (Claude, etc.)
 CLAUDE.md
 .claude/
+.claude_code/
 .superpowers/
 .worktrees/
+*.plan.md
 
 # Model weights (download separately)
 backend/weights/
